@@ -5,11 +5,13 @@ mod color;
 mod framebuffer;
 mod mesh;
 mod pipeline;
+mod renderer;
 mod texture;
 use crate::color::Color;
 use crate::framebuffer::Framebuffer;
 use crate::mesh::Mesh;
-use crate::pipeline::{Vertex, draw_mesh};
+use crate::pipeline::Vertex;
+use crate::renderer::Renderer;
 use crate::texture::Texture;
 
 const WIDTH: usize = 600;
@@ -30,7 +32,9 @@ fn main() {
         b: 0.1,
     });
 
-    let texture = Texture::load_from_file("assets/container.jpg");
+    let mut renderer = Renderer::new();
+
+    let container = Texture::load_from_file("assets/container.jpg");
     let cube = Mesh::cube();
     let monkey = Mesh::load_obj("assets/monkey.obj");
 
@@ -42,8 +46,13 @@ fn main() {
 
         angle += 0.02;
 
-        let model = Mat4::from_translation(Vec3::new(0.0, 0.0, 4.5)) * Mat4::from_rotation_y(angle);
+        let monkey_model =
+            Mat4::from_translation(Vec3::new(0.0, 0.0, 4.0)) * Mat4::from_rotation_y(angle);
         //* Mat4::from_rotation_x(angle * 0.6);
+        let cube_model = Mat4::from_translation(Vec3::new(2.5, 0.0, 10.0))
+            * Mat4::from_rotation_y(angle)
+            * Mat4::from_rotation_x(angle * 0.6);
+
         let view = glam::camera::lh::view::look_at_mat4(
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -55,12 +64,11 @@ fn main() {
             0.1,
             100.0,
         );
-        let mvp = proj * view * model;
 
         let light_dir = Vec3::new(0.5, 1.0, -1.0).normalize();
         let camera_pos = Vec3::new(0.0, 0.0, 0.0);
 
-        let vertex_shader = |vertex: Vertex<(Vec3, Vec2)>| {
+        let vertex_shader = |vertex: Vertex<(Vec3, Vec2)>, model: Mat4, mvp: Mat4| {
             let clip_pos = mvp * vertex.position.extend(1.0);
             let world_pos = (model * vertex.position.extend(1.0)).truncate();
             let world_normal = (model * vertex.varying.0.extend(0.0))
@@ -81,8 +89,9 @@ fn main() {
             let half_dir = (light_dir + view_dir).normalize();
             let spec = n.dot(half_dir).max(0.0).powf(32.0) * 0.5;
 
-            let base_color = Color::new(0.9, 0.6, 0.3);
             let total_intensity = ambient + diff;
+            let base_color = container.sample(uv);
+
             Some(Color {
                 r: base_color.r * total_intensity + spec,
                 g: base_color.g * total_intensity + spec,
@@ -90,7 +99,17 @@ fn main() {
             })
         };
 
-        draw_mesh(&mut framebuffer, &monkey, vertex_shader, fragment_shader);
+        renderer.queue_mesh(&monkey, monkey_model);
+        renderer.queue_mesh(&cube, cube_model);
+
+        renderer.render(
+            &mut framebuffer,
+            view,
+            proj,
+            camera_pos,
+            vertex_shader,
+            fragment_shader,
+        );
 
         window
             .update_with_buffer(framebuffer.get_buffer(), WIDTH, HEIGHT)

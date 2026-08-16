@@ -36,13 +36,16 @@ impl Texture {
     pub fn load_from_file(path: &str) -> Self {
         let img = open(path).expect("Failed to load texture").to_rgba8();
         let (width, height) = (img.width() as usize, img.height() as usize);
-        let data = img.pixels().map(|p| {
-            Color::new(
-                p[0] as f32 / 255.0,
-                p[1] as f32 / 255.0,
-                p[2] as f32 / 255.0,
-            )
-        }).collect();
+        let data = img
+            .pixels()
+            .map(|p| {
+                Color::new(
+                    p[0] as f32 / 255.0,
+                    p[1] as f32 / 255.0,
+                    p[2] as f32 / 255.0,
+                )
+            })
+            .collect();
         Self::new(width, height, data)
     }
 

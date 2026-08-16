@@ -112,30 +112,55 @@ fn rasterize_triangle<V, FS>(
     }
     let inv_area = 1.0 / area;
 
-    for y in min_y.floor() as u32..=max_y.ceil() as u32 {
-        for x in min_x.floor() as u32..=max_x.ceil() as u32 {
-            let p = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, 0.0);
+    let min_x_int = min_x.floor() as u32;
+    let max_x_int = max_x.ceil() as u32;
+    let min_y_int = min_y.floor() as u32;
+    let max_y_int = max_y.ceil() as u32;
 
-            let w0 = edge_function(sv1.position, sv2.position, p) * inv_area;
-            let w1 = edge_function(sv2.position, sv0.position, p) * inv_area;
-            let w2 = edge_function(sv0.position, sv1.position, p) * inv_area;
+    let step_x0 = (sv2.position.y - sv1.position.y) * inv_area;
+    let step_y0 = (sv1.position.x - sv2.position.x) * inv_area;
+    let step_x1 = (sv0.position.y - sv2.position.y) * inv_area;
+    let step_y1 = (sv2.position.x - sv0.position.x) * inv_area;
+    let step_x2 = (sv1.position.y - sv0.position.y) * inv_area;
+    let step_y2 = (sv0.position.x - sv1.position.x) * inv_area;
 
+    let p_start = Vec3::new(min_x_int as f32 + 0.5, min_y_int as f32 + 0.5, 0.0);
+    let mut row_w0 = edge_function(sv1.position, sv2.position, p_start) * inv_area;
+    let mut row_w1 = edge_function(sv2.position, sv0.position, p_start) * inv_area;
+    let mut row_w2 = edge_function(sv0.position, sv1.position, p_start) * inv_area;
+
+    for y in min_y_int..=max_y_int {
+        let mut w0 = row_w0;
+        let mut w1 = row_w1;
+        let mut w2 = row_w2;
+
+        for x in min_x_int..=max_x_int {
             if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
-                let inv_w = w0 * sv0.inv_w + w1 * sv1.inv_w + w2 * sv2.inv_w;
-                let w = 1.0 / inv_w;
-
                 let z = w0 * sv0.position.z + w1 * sv1.position.z + w2 * sv2.position.z;
 
-                let k0 = w0 * sv0.inv_w * w;
-                let k1 = w1 * sv1.inv_w * w;
-                let k2 = w2 * sv2.inv_w * w;
-                let varying = V::barycentric(sv0.varying, sv1.varying, sv2.varying, k0, k1, k2);
+                if z < framebuffer.get_pixel_z(x, y) {
+                    let inv_w = w0 * sv0.inv_w + w1 * sv1.inv_w + w2 * sv2.inv_w;
+                    let w = 1.0 / inv_w;
 
-                if let Some(color) = fragment_shader(varying) {
-                    framebuffer.test_z_set_pixel(x, y, z, color.into());
+                    let k0 = w0 * sv0.inv_w * w;
+                    let k1 = w1 * sv1.inv_w * w;
+                    let k2 = w2 * sv2.inv_w * w;
+
+                    let varying = V::barycentric(sv0.varying, sv1.varying, sv2.varying, k0, k1, k2);
+                    if let Some(color) = fragment_shader(varying) {
+                        framebuffer.test_z_set_pixel(x, y, z, color.into());
+                    }
                 }
             }
+
+            w0 += step_x0;
+            w1 += step_x1;
+            w2 += step_x2;
         }
+
+        row_w0 += step_y0;
+        row_w1 += step_y1;
+        row_w2 += step_y2;
     }
 }
 
@@ -169,6 +194,26 @@ pub fn draw_triangle<In, Out, VS, FS>(
     };
 
     if cv0.position.w <= 0.0 || cv1.position.w <= 0.0 || cv2.position.w <= 0.0 {
+        return;
+    }
+
+    let all_left = cv0.position.x < -cv0.position.w
+        && cv1.position.x < -cv1.position.w
+        && cv2.position.x < -cv2.position.w;
+    let all_right = cv0.position.x > cv0.position.w
+        && cv1.position.x > cv1.position.w
+        && cv2.position.x > cv2.position.w;
+    let all_bottom = cv0.position.y < -cv0.position.w
+        && cv1.position.y < -cv1.position.w
+        && cv2.position.y < -cv2.position.w;
+    let all_top = cv0.position.y > cv0.position.w
+        && cv1.position.y > cv1.position.w
+        && cv2.position.y > cv2.position.w;
+    let all_far = cv0.position.z > cv0.position.w
+        && cv1.position.z > cv1.position.w
+        && cv2.position.z > cv2.position.w;
+    let all_near = cv0.position.z < 0.0 && cv1.position.z < 0.0 && cv2.position.z < 0.0;
+    if all_left || all_right || all_bottom || all_top || all_far || all_near {
         return;
     }
 

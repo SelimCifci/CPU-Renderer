@@ -16,7 +16,11 @@ impl Framebuffer {
             height,
             color_buffer: vec![0; width * height],
             z_buffer: vec![1.0; width * height],
-            clear_color: Color { r: 0.0, g: 0.0, b: 0.0 },
+            clear_color: Color {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+            },
         }
     }
     pub fn get_buffer(&self) -> &[u32] {
