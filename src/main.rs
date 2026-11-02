@@ -34,9 +34,10 @@ fn main() {
 
     let mut renderer = Renderer::new();
 
-    let container = Texture::checkerboard(128, 128, 32);
+    let container = Texture::load_from_file("assets/container.jpg");
+    //let container = Texture::checkerboard(128, 128, 32);
     let cube = Mesh::cube();
-    let monkey = Mesh::load_obj("assets/sphere.obj");
+    let monkey = Mesh::load_obj("assets/monkey.obj");
 
     let mut angle = 0.0;
 
@@ -47,7 +48,7 @@ fn main() {
         angle += 0.02;
 
         let monkey_model =
-            Mat4::from_translation(Vec3::new(0.0, 0.0, 4.0));// * Mat4::from_rotation_y(angle);
+            Mat4::from_translation(Vec3::new(0.0, 0.0, 4.0)) * Mat4::from_rotation_y(angle);
         //* Mat4::from_rotation_x(angle * 0.6);
 
         let view = glam::camera::lh::view::look_at_mat4(
